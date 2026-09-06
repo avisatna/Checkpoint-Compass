@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-Checkpoint Compass is a Visual Studio Code extension that records the intent behind a code change and compares that intent with the current implementation. It creates checkpoint files from the current Git diff, identifies basic intent mismatches, detects unresolved risks, and generates a release-readiness report.
+Checkpoint Compass is a Visual Studio Code extension that turns preserved development context into an input for review, risk assessment, handoff, and resuming agent-assisted work. It records why a change happened, what was attempted, assumptions, failures, unresolved work, and the Git diff. When [Entire](https://entire.io/) is enabled, it links this local record to the saved agent transcript and session checkpoint that produced the work.
 
 The project currently targets:
 
@@ -14,17 +14,17 @@ The project currently targets:
 ## 2. Core Workflow
 
 ```text
-Create checkpoint
+Start an Entire-tracked agent session
       ↓
-Capture intent + Git diff
+Capture intent, attempts, assumptions, failures, unresolved work + Git diff
+      ↓
+Link the latest committed Entire Checkpoint when available
       ↓
 Save .checkpoints/<timestamp>.cp.json
       ↓
-Compare implementation to intent
+Compare implementation, reasoning trail, and checkpoint availability
       ↓
-Scan unresolved entries and TODO/FIXME markers
-      ↓
-Generate risk dashboard and release report
+Generate risks, release report, or context handoff
 ```
 
 ## 3. VS Code Commands
@@ -36,6 +36,8 @@ Commands are available from the VS Code Command Palette.
 | `Checkpoint Compass: Create New Checkpoint` | Captures the requested intent and current Git diff, then saves a checkpoint. |
 | `Checkpoint Compass: Compare Implementation to Intent` | Compares intent keywords against the checkpoint diff and displays detected issues. |
 | `Checkpoint Compass: Generate Release-Readiness Report` | Creates a Markdown report containing intent comparison, risks, and test output. |
+| `Checkpoint Compass: Create Context Handoff` | Creates a Markdown briefing that a developer or agent can use to continue the work. |
+| `Checkpoint Compass: Open Linked Entire Checkpoint Context` | Opens the saved Entire CLI context associated with the latest local checkpoint. |
 
 The create-checkpoint command is also available from the editor title toolbar.
 
@@ -46,6 +48,7 @@ Checkpoint-Compass/
 ├── src/
 │   ├── extension.ts              Extension activation and command registration
 │   ├── checkpointSchema.ts       Checkpoint types, JSON schema, and AJV validation
+│   ├── entire.ts                 Entire CLI discovery, checkpoint lookup, and context retrieval
 │   ├── git.ts                    Git commands and diff parsing
 │   ├── analysis.ts               Intent comparison and risk analysis
 │   └── ui/
@@ -81,27 +84,39 @@ Each checkpoint contains the following fields:
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `schemaVersion` | `1` | Schema version for future migrations. |
+| `schemaVersion` | `1` or `2` | Schema version for future migrations. New records use version 2. |
 | `timestamp` | ISO date-time string | Creation time of the checkpoint. |
 | `intent` | string | The user’s description of what the change should accomplish. |
 | `codeDiff` | string | Output of `git diff HEAD`. |
 | `files` | string array | Files detected as changed. |
 | `notes` | string, optional | Additional context supplied during checkpoint creation. |
 | `unresolved` | string array | Assumptions or unresolved questions associated with the checkpoint. |
-| `agentLogs` | object array | Reserved for future LLM prompt and response capture. |
+| `agentSteps` | string array | Actions attempted by the developer or agent. |
+| `assumptions` | string array | Decisions requiring verification. |
+| `failures` | string array | Failed attempts, missing environments, or incomplete work. |
+| `agentLogs` | object array | Reserved for local prompt and response capture; Entire preserves the full session transcript. |
+| `entire` | object, optional | Reference to the linked Entire checkpoint, branch, and session. |
 
 Example:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "timestamp": "2026-09-06T14:30:00.000Z",
   "intent": "Add validation for imported configuration",
   "codeDiff": "diff --git ...",
   "files": ["src/config.ts"],
-  "notes": "Validation should preserve existing defaults.",
-  "unresolved": [],
-  "agentLogs": []
+  "agentSteps": ["Added parser validation", "Ran unit tests"],
+  "assumptions": ["Existing clients handle validation errors"],
+  "failures": ["Integration test environment is unavailable"],
+  "unresolved": ["Confirm the release error message"],
+  "agentLogs": [],
+  "entire": {
+    "source": "entire-cli",
+    "checkpointId": "a3b2c4d5e6f7",
+    "capturedAt": "2026-09-06T14:30:00.000Z",
+    "branch": "main"
+  }
 }
 ```
 
@@ -116,6 +131,7 @@ The current comparison engine is intentionally lightweight. It:
 3. Searches the checkpoint diff for each remaining keyword.
 4. Reports keywords that are not found.
 5. Reports an empty implementation diff as a mismatch.
+6. Treats unavailable Entire context as a handoff and review risk.
 
 The output includes:
 
@@ -132,9 +148,12 @@ This is a heuristic MVP check, not a semantic or security review. Similar words,
 
 The risk dashboard combines:
 
+- Assumptions requiring verification.
+- Failed or incomplete attempts.
 - Entries in the checkpoint’s `unresolved` array.
 - `TODO` markers in changed files.
 - `FIXME` markers in changed files.
+- A missing Entire checkpoint link or missing agent-step record.
 
 Example:
 
@@ -158,7 +177,28 @@ The report command produces a Markdown file with:
 
 The generated file is opened in a VS Code editor tab for review or copy-paste into a pull request.
 
-## 10. Development Setup
+The handoff command creates a separate Markdown briefing with the goal, files touched, attempts, assumptions, failures, unresolved work, risks, and the Entire CLI commands needed to inspect or resume the source session.
+
+## 10. Entire Integration
+
+Entire is the durable agent-context layer for this workflow. Its CLI preserves the full prompt, transcript, tool activity, and checkpoint metadata when agent work is committed. Checkpoint Compass stores only a stable Entire checkpoint reference, then reads the saved context during review, reporting, and handoff.
+
+Set up Entire before beginning an agent-assisted task:
+
+```bash
+entire enable --agent codex
+```
+
+The extension detects checkpoints with `entire checkpoint list --json`; use the following commands to inspect original reasoning or restore the latest session for a branch:
+
+```bash
+entire checkpoint explain --checkpoint <id> --full --no-pager
+entire session resume <branch>
+```
+
+If Entire is unavailable or there is no committed checkpoint yet, Checkpoint Compass remains usable but reports the missing reasoning trail as a risk. It never installs or enables Entire automatically.
+
+## 11. Development Setup
 
 Requirements:
 
@@ -187,7 +227,7 @@ To launch the extension during development:
 3. Open a Git-backed workspace in the Extension Development Host.
 4. Run one of the Checkpoint Compass commands from the Command Palette.
 
-## 11. Testing
+## 12. Testing
 
 The test suite uses Node’s built-in test runner.
 
@@ -199,6 +239,8 @@ Current coverage includes:
 - Invalid timestamp rejection.
 - Intent keyword mismatch detection.
 - TODO/FIXME detection with line numbers.
+- Entire-checkpoint reference validation.
+- Missing Entire context detection for handoff.
 
 Run all tests with:
 
@@ -206,33 +248,36 @@ Run all tests with:
 npm test
 ```
 
-## 12. Current Limitations
+## 13. Current Limitations
 
 - Intent comparison uses keyword matching rather than semantic analysis.
 - ESLint and other language-specific analyzers are not currently invoked.
-- LLM prompt and response logging is reserved for a later iteration.
-- The CLI and CI integration are not yet implemented.
+- Intent comparison uses keywords rather than semantic verification.
+- Checkpoint Compass reads the Entire CLI but does not create, configure, or install Entire automatically.
+- The CLI and CI integration for Checkpoint Compass itself are not yet implemented.
 - Test output is captured as a text snapshot rather than normalized coverage metrics.
-- Checkpoint creation currently initializes `unresolved` as an empty list; unresolved entries can be populated by future UI or CLI workflows.
 
-## 13. Suggested Future Work
+## 14. Suggested Future Work
 
 ### Near term
 
-- Add a dedicated unresolved-assumptions field to the create-checkpoint Webview.
 - Add optional ESLint or language-service diagnostics to comparison results.
 - Add integration tests using a temporary Git repository.
 - Add a tree view for browsing checkpoints.
 
 ### Later iterations
 
-- Add automatic LLM prompt and response capture.
+- Add semantic comparison that uses the linked Entire transcript and stated acceptance criteria.
 - Add a `cp-compass` CLI for local and CI usage.
 - Add configurable checkpoint storage locations.
 - Add report templates for pull requests and release sign-off.
 - Add semantic comparison backed by a configurable model.
 
-## 14. Design Decisions
+## 15. Design Decisions
+
+### Entire as the durable agent record
+
+The extension stores concise review and handoff metadata in `.checkpoints/`, while Entire stores the durable, restorable agent-session record in Git-backed checkpoint storage. This keeps reports compact while retaining a path to the full original reasoning.
 
 ### Repository-local storage
 

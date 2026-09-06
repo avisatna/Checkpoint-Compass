@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { validateCheckpoint } = require('../dist/checkpointSchema.js');
 
 const validCheckpoint = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   timestamp: '2026-09-06T00:00:00.000Z',
   intent: 'Add validation',
   codeDiff: '+ validateConfig();',
@@ -29,4 +29,21 @@ test('rejects unknown fields', () => {
 test('rejects an invalid timestamp', () => {
   const invalid = { ...validCheckpoint, timestamp: 'not-a-date' };
   assert.equal(validateCheckpoint(invalid), false);
+});
+
+test('accepts reasoning and an Entire checkpoint reference', () => {
+  const enriched = {
+    ...validCheckpoint,
+    agentSteps: ['Added request validation'],
+    assumptions: ['The client accepts a 400 response'],
+    failures: ['End-to-end environment is unavailable'],
+    unresolved: ['Confirm error copy'],
+    entire: {
+      source: 'entire-cli',
+      checkpointId: 'a3b2c4d5e6f7',
+      capturedAt: '2026-09-06T00:00:00.000Z',
+      branch: 'main'
+    }
+  };
+  assert.equal(validateCheckpoint(enriched), true);
 });

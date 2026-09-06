@@ -1,5 +1,5 @@
 import { Checkpoint } from './checkpointSchema';
-import { addedLines, DiffLine, filesFromDiff } from './git';
+import { addedLines, filesFromDiff } from './git';
 
 export interface ComparisonIssue {
   file: string;
@@ -14,7 +14,7 @@ export function intentKeywords(intent: string): string[] {
   return [...new Set((intent.toLowerCase().match(/[a-z][a-z0-9_-]{2,}/g) ?? []).filter((word) => !STOP_WORDS.has(word)))];
 }
 
-export function compareIntent(checkpoint: Checkpoint): ComparisonIssue[] {
+export function compareIntent(checkpoint: Checkpoint, entireContextAvailable = false): ComparisonIssue[] {
   const keywords = intentKeywords(checkpoint.intent);
   const searchableDiff = checkpoint.codeDiff.toLowerCase();
   const changed = addedLines(checkpoint.codeDiff);
@@ -40,6 +40,21 @@ export function compareIntent(checkpoint: Checkpoint): ComparisonIssue[] {
       suggestion: 'Make the intended changes and create a new checkpoint.'
     });
   }
+  if (!checkpoint.entire) {
+    issues.push({
+      file: fallbackFile,
+      line: 1,
+      issue: 'No Entire Checkpoint is linked, so the originating agent reasoning cannot be reviewed or resumed.',
+      suggestion: 'Enable Entire for the repository and create a committed agent checkpoint before handoff or release review.'
+    });
+  } else if (!entireContextAvailable) {
+    issues.push({
+      file: fallbackFile,
+      line: 1,
+      issue: `Entire Checkpoint ${checkpoint.entire.checkpointId} is linked but its saved context could not be read.`,
+      suggestion: 'Fetch the Entire checkpoint metadata, then reopen the comparison.'
+    });
+  }
   return issues;
 }
 
@@ -57,7 +72,11 @@ export function findTodoMarkers(files: string[], readFile: (file: string) => str
 
 export function buildRiskDashboard(checkpoint: Checkpoint, risks: string[], generatedAt = new Date().toISOString()): string {
   const entries = [
+    ...(checkpoint.assumptions ?? []).map((entry) => `Assumption requiring verification: ${entry}`),
+    ...(checkpoint.failures ?? []).map((entry) => `Failed or incomplete attempt: ${entry}`),
     ...checkpoint.unresolved.map((entry) => `Unresolved assumption: ${entry}`),
+    ...(checkpoint.agentSteps?.length ? [] : ['No agent steps were recorded; the reasoning trail is incomplete.']),
+    ...(checkpoint.entire ? [] : ['No Entire Checkpoint is linked; another developer or agent cannot restore the original session.']),
     ...risks
   ];
   return `## Risks for ${checkpoint.timestamp}\n\n_Generated ${generatedAt}_\n\n${entries.length ? entries.map((entry) => `- ${entry}`).join('\n') : '- No unresolved assumptions or TODO/FIXME markers detected.'}\n`;

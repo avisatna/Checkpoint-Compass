@@ -7,8 +7,17 @@ export interface AgentLog {
   timestamp?: string;
 }
 
+export interface EntireCheckpointReference {
+  source: 'entire-cli';
+  checkpointId: string;
+  capturedAt: string;
+  branch?: string;
+  sessionId?: string;
+  message?: string;
+}
+
 export interface Checkpoint {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   timestamp: string;
   intent: string;
   codeDiff: string;
@@ -16,6 +25,10 @@ export interface Checkpoint {
   notes?: string;
   unresolved: string[];
   agentLogs: AgentLog[];
+  agentSteps?: string[];
+  assumptions?: string[];
+  failures?: string[];
+  entire?: EntireCheckpointReference;
 }
 
 export const checkpointSchema: JSONSchemaType<Checkpoint> = {
@@ -24,13 +37,30 @@ export const checkpointSchema: JSONSchemaType<Checkpoint> = {
   additionalProperties: false,
   required: ['schemaVersion', 'timestamp', 'intent', 'codeDiff', 'files', 'unresolved', 'agentLogs'],
   properties: {
-    schemaVersion: { type: 'integer', const: 1 },
+    schemaVersion: { type: 'integer', enum: [1, 2] },
     timestamp: { type: 'string', format: 'date-time' },
     intent: { type: 'string', minLength: 1 },
     codeDiff: { type: 'string' },
     files: { type: 'array', items: { type: 'string' } },
     notes: { type: 'string', nullable: true },
     unresolved: { type: 'array', items: { type: 'string' } },
+    agentSteps: { type: 'array', items: { type: 'string' }, nullable: true },
+    assumptions: { type: 'array', items: { type: 'string' }, nullable: true },
+    failures: { type: 'array', items: { type: 'string' }, nullable: true },
+    entire: {
+      type: 'object',
+      nullable: true,
+      additionalProperties: false,
+      required: ['source', 'checkpointId', 'capturedAt'],
+      properties: {
+        source: { type: 'string', const: 'entire-cli' },
+        checkpointId: { type: 'string', minLength: 1 },
+        capturedAt: { type: 'string', format: 'date-time' },
+        branch: { type: 'string', nullable: true },
+        sessionId: { type: 'string', nullable: true },
+        message: { type: 'string', nullable: true }
+      }
+    },
     agentLogs: {
       type: 'array',
       items: {

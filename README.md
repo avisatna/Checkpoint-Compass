@@ -29,7 +29,50 @@ entire checkpoint explain --checkpoint <id> --full --no-pager
 entire session resume <branch>
 ```
 
-## Development
+## Install and run locally
+
+Checkpoint Compass is currently run from source as a VS Code development extension. You need Node.js 20 or later, npm, Git, and Visual Studio Code.
+
+### 1. Prepare the extension project
+
+Open PowerShell and run:
+
+```powershell
+cd C:\GitProjects\Checkpoint-Compass
+npm install
+npm run compile
+```
+
+### 2. Start the extension
+
+1. Open `C:\GitProjects\Checkpoint-Compass` in **Visual Studio Code**.
+2. Open **Run and Debug** with `Ctrl+Shift+D`.
+3. Select **Run Checkpoint Compass**.
+4. Press `F5`.
+
+VS Code opens a separate **Extension Development Host** window with Checkpoint Compass installed for that window.
+
+### 3. Use it in a Git repository
+
+1. In the **Extension Development Host** window, select **File → Open Folder**.
+2. Open the Git repository you want to work in.
+3. Make or review some changes so the repository has a Git diff.
+4. Open the Command Palette with `Ctrl+Shift+P`.
+5. Run **Checkpoint Compass: Create New Checkpoint**.
+
+The checkpoint and its generated reports are written to that target repository’s `.checkpoints/` folder. The commands are VS Code Command Palette actions; do not enter their names into PowerShell.
+
+### Optional: add Entire session context
+
+In the target Git repository, enable Entire before beginning an agent-assisted task:
+
+```powershell
+entire enable --agent codex
+```
+
+Approve the Entire hooks in Codex, complete an agent session, and commit the work. Checkpoint Compass will then link its local checkpoint to the latest Entire checkpoint on the branch.
+
+## Development and verification
 
 ```bash
 npm install
@@ -37,4 +80,4 @@ npm run compile
 npm test
 ```
 
-Press `F5` in VS Code to launch an Extension Development Host. The extension expects a Git-backed workspace. The comparison is intentionally lightweight for the MVP: it tokenizes the intent and checks whether meaningful intent keywords appear in the checkpoint diff. TODO/FIXME markers, assumptions, failed attempts, unresolved entries, and missing Entire context are included in the risk dashboard.
+The extension expects a Git-backed workspace. The comparison is intentionally lightweight for the MVP: it tokenizes the intent and checks whether meaningful intent keywords appear in the checkpoint diff. TODO/FIXME markers, assumptions, failed attempts, unresolved entries, and missing Entire context are included in the risk dashboard.

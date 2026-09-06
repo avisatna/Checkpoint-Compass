@@ -1,0 +1,70 @@
+{
+  "name": "checkpoint-compass",
+  "displayName": "Checkpoint Compass",
+  "description": "Create checkpoints and assess implementation intent before release.",
+  "version": "0.1.0",
+  "publisher": "checkpoint-compass",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:checkpointCompass.createCheckpoint",
+    "onCommand:checkpointCompass.compareIntent",
+    "onCommand:checkpointCompass.generateReport"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "checkpointCompass.createCheckpoint",
+        "title": "Checkpoint Compass: Create New Checkpoint"
+      },
+      {
+        "command": "checkpointCompass.compareIntent",
+        "title": "Checkpoint Compass: Compare Implementation to Intent"
+      },
+      {
+        "command": "checkpointCompass.generateReport",
+        "title": "Checkpoint Compass: Generate Release-Readiness Report"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "checkpointCompass.createCheckpoint"
+        },
+        {
+          "command": "checkpointCompass.compareIntent"
+        },
+        {
+          "command": "checkpointCompass.generateReport"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "checkpointCompass.createCheckpoint",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./tsconfig.json",
+    "watch": "tsc -watch -p ./tsconfig.json",
+    "test": "npm run compile && node --test test/*.test.js",
+    "package": "npm run compile"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.12",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.5.4"
+  }
+}
